@@ -3,21 +3,16 @@ package com.video.download;
 import android.content.Context;
 import android.os.Environment;
 import android.util.Log;
-import org.json.JSONObject;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 public class VideoDownloader {
     private static final String TAG = "VideoDownloader";
     private Context context;
     private DownloadListener listener;
-    private OkHttpClient client;
 
     public interface DownloadListener {
         void onProgress(int progress);
@@ -28,10 +23,6 @@ public class VideoDownloader {
 
     public VideoDownloader(Context context) {
         this.context = context;
-        this.client = new OkHttpClient.Builder()
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build();
     }
 
     public void setDownloadListener(DownloadListener listener) {
@@ -39,28 +30,31 @@ public class VideoDownloader {
     }
 
     public void downloadVideo(String url, String quality) {
-        new Thread(() -> {
-            try {
-                if (listener != null) listener.onStart();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (listener != null) listener.onStart();
 
-                VideoInfo videoInfo = extractVideoInfo(url, quality);
-                if (videoInfo == null) {
-                    if (listener != null) listener.onError("Failed to extract video information");
-                    return;
+                    VideoInfo videoInfo = extractVideoInfo(url, quality);
+                    if (videoInfo == null) {
+                        if (listener != null) listener.onError("Failed to extract video information");
+                        return;
+                    }
+
+                    String fileName = generateFileName(videoInfo.title, videoInfo.platform);
+                    File downloadDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader");
+                    if (!downloadDir.exists()) {
+                        downloadDir.mkdirs();
+                    }
+
+                    File outputFile = new File(downloadDir, fileName);
+                    downloadFile(videoInfo.downloadUrl, outputFile.getAbsolutePath());
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Download error", e);
+                    if (listener != null) listener.onError("Download failed: " + e.getMessage());
                 }
-
-                String fileName = generateFileName(videoInfo.title, videoInfo.platform);
-                File downloadDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader");
-                if (!downloadDir.exists()) {
-                    downloadDir.mkdirs();
-                }
-
-                File outputFile = new File(downloadDir, fileName);
-                downloadFile(videoInfo.downloadUrl, outputFile.getAbsolutePath());
-
-            } catch (Exception e) {
-                Log.e(TAG, "Download error", e);
-                if (listener != null) listener.onError("Download failed: " + e.getMessage());
             }
         }).start();
     }
@@ -210,15 +204,16 @@ public class VideoDownloader {
 
     private String expandShortUrl(String shortUrl) {
         try {
-            Request request = new Request.Builder()
-                    .url(shortUrl)
-                    .head() // HEAD request to get redirect without downloading content
-                    .build();
-
-            Response response = client.newCall(request).execute();
-            String expandedUrl = response.request().url().toString();
-            response.close();
-            return expandedUrl;
+            URL url = new URL(shortUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("HEAD");
+            connection.connect();
+            
+            String expandedUrl = connection.getHeaderField("Location");
+            connection.disconnect();
+            
+            return expandedUrl != null ? expandedUrl : shortUrl;
         } catch (Exception e) {
             Log.e(TAG, "Error expanding URL", e);
             return shortUrl;

@@ -154,8 +154,11 @@ public class ErrorHandler {
     }
 
     private static boolean hasPermission(Context context, String permission) {
-        return androidx.core.content.ContextCompat.checkSelfPermission(context, permission) 
-                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            return context.checkSelfPermission(permission) 
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
     }
 
     /**

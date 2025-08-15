@@ -6,8 +6,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+import android.os.Build;
 
 public class MainActivity extends Activity {
     private static final int STORAGE_PERMISSION_CODE = 1001;
@@ -47,7 +46,12 @@ public class MainActivity extends Activity {
         progressBar = findViewById(R.id.progressBar);
         tvProgressPercent = findViewById(R.id.tvProgressPercent);
 
-        btnDownload.setOnClickListener(v -> startDownload());
+        btnDownload.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startDownload();
+            }
+        });
     }
 
     private void setupSpinner() {
@@ -77,50 +81,65 @@ public class MainActivity extends Activity {
         videoDownloader.setDownloadListener(new VideoDownloader.DownloadListener() {
             @Override
             public void onStart() {
-                runOnUiThread(() -> {
-                    btnDownload.setEnabled(false);
-                    btnDownload.setText("Downloading...");
-                    progressCard.setVisibility(View.VISIBLE);
-                    tvDownloadStatus.setText("Preparing download...");
-                    progressBar.setProgress(0);
-                    tvProgressPercent.setText("0%");
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        btnDownload.setEnabled(false);
+                        btnDownload.setText("Downloading...");
+                        progressCard.setVisibility(View.VISIBLE);
+                        tvDownloadStatus.setText("Preparing download...");
+                        progressBar.setProgress(0);
+                        tvProgressPercent.setText("0%");
+                    }
                 });
             }
 
             @Override
-            public void onProgress(int progress) {
-                runOnUiThread(() -> {
-                    progressBar.setProgress(progress);
-                    tvProgressPercent.setText(progress + "%");
-                    tvDownloadStatus.setText("Downloading... " + progress + "%");
+            public void onProgress(final int progress) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        progressBar.setProgress(progress);
+                        tvProgressPercent.setText(progress + "%");
+                        tvDownloadStatus.setText("Downloading... " + progress + "%");
+                    }
                 });
             }
 
             @Override
-            public void onSuccess(String filePath) {
-                runOnUiThread(() -> {
-                    btnDownload.setEnabled(true);
-                    btnDownload.setText("Download Video");
-                    tvDownloadStatus.setText("Download completed!");
-                    progressBar.setProgress(100);
-                    tvProgressPercent.setText("100%");
-                    
-                    showToast("Video downloaded successfully!\nSaved to: " + filePath);
-                    
-                    // Hide progress card after 3 seconds
-                    progressCard.postDelayed(() -> {
+            public void onSuccess(final String filePath) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        btnDownload.setEnabled(true);
+                        btnDownload.setText("Download Video");
+                        tvDownloadStatus.setText("Download completed!");
+                        progressBar.setProgress(100);
+                        tvProgressPercent.setText("100%");
+                        
+                        showToast("Video downloaded successfully!\nSaved to: " + filePath);
+                        
+                        // Hide progress card after 3 seconds
+                        progressCard.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressCard.setVisibility(View.GONE);
+                            }
+                        }, 3000);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(final String error) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        btnDownload.setEnabled(true);
+                        btnDownload.setText("Download Video");
                         progressCard.setVisibility(View.GONE);
-                    }, 3000);
-                });
-            }
-
-            @Override
-            public void onError(String error) {
-                runOnUiThread(() -> {
-                    btnDownload.setEnabled(true);
-                    btnDownload.setText("Download Video");
-                    progressCard.setVisibility(View.GONE);
-                    showToast("Download failed: " + error);
+                        showToast("Download failed: " + error);
+                    }
                 });
             }
         });
@@ -181,18 +200,22 @@ public class MainActivity extends Activity {
     }
 
     private boolean hasStoragePermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) 
-                == PackageManager.PERMISSION_GRANTED;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) 
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
     }
 
     private void requestStoragePermission() {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            showToast("Storage permission is required to save downloaded videos");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                showToast("Storage permission is required to save downloaded videos");
+            }
+            
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 
+                STORAGE_PERMISSION_CODE);
         }
-        
-        ActivityCompat.requestPermissions(this, 
-            new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 
-            STORAGE_PERMISSION_CODE);
     }
 
     private void checkPermissions() {

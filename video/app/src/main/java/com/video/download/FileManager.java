@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Environment;
 import android.util.Log;
-import androidx.core.content.FileProvider;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -101,7 +100,16 @@ public class FileManager {
         }
 
         // Sort by date (newest first)
-        videos.sort((a, b) -> Long.compare(b.downloadDate, a.downloadDate));
+        // Simple bubble sort for compatibility
+        for (int i = 0; i < videos.size() - 1; i++) {
+            for (int j = 0; j < videos.size() - i - 1; j++) {
+                if (videos.get(j).downloadDate < videos.get(j + 1).downloadDate) {
+                    DownloadedVideo temp = videos.get(j);
+                    videos.set(j, videos.get(j + 1));
+                    videos.set(j + 1, temp);
+                }
+            }
+        }
         
         return videos;
     }
@@ -143,11 +151,10 @@ public class FileManager {
             }
 
             Intent intent = new Intent(Intent.ACTION_VIEW);
-            Uri videoUri = FileProvider.getUriForFile(context, 
-                context.getPackageName() + ".provider", file);
+            Uri videoUri = Uri.fromFile(file);
             
             intent.setDataAndType(videoUri, "video/*");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             
             if (intent.resolveActivity(context.getPackageManager()) != null) {
                 context.startActivity(intent);
@@ -171,15 +178,15 @@ public class FileManager {
             }
 
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            Uri videoUri = FileProvider.getUriForFile(context, 
-                context.getPackageName() + ".provider", file);
+            Uri videoUri = Uri.fromFile(file);
             
             shareIntent.setType("video/*");
             shareIntent.putExtra(Intent.EXTRA_STREAM, videoUri);
             shareIntent.putExtra(Intent.EXTRA_TEXT, "Check out this video I downloaded!");
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             
             Intent chooser = Intent.createChooser(shareIntent, "Share Video");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             if (chooser.resolveActivity(context.getPackageManager()) != null) {
                 context.startActivity(chooser);
             }
