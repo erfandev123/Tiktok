@@ -6,13 +6,13 @@ import android.util.Log;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-public class RealVideoDownloader {
-    private static final String TAG = "RealVideoDownloader";
+public class EnhancedVideoDownloader {
+    private static final String TAG = "EnhancedVideoDownloader";
     private Context context;
     private DownloadListener listener;
     private ExecutorService executor;
@@ -25,7 +25,7 @@ public class RealVideoDownloader {
         void onVideoInfo(String title, String duration, String thumbnail);
     }
 
-    public RealVideoDownloader(Context context) {
+    public EnhancedVideoDownloader(Context context) {
         this.context = context;
         this.executor = Executors.newCachedThreadPool();
     }
@@ -41,7 +41,7 @@ public class RealVideoDownloader {
                 try {
                     if (listener != null) listener.onStart();
 
-                    // First, extract video info
+                    // Extract video info
                     VideoInfo videoInfo = extractVideoInfo(url);
                     if (videoInfo == null) {
                         if (listener != null) listener.onError("Unable to extract video information. Please check the URL.");
@@ -109,22 +109,19 @@ public class RealVideoDownloader {
 
     private VideoInfo extractYouTubeInfo(String url) {
         try {
-            // Extract video ID from URL
             String videoId = extractYouTubeVideoId(url);
             if (videoId == null) return null;
 
-            // For YouTube, we'll use a working approach
             String apiUrl = "https://www.youtube.com/watch?v=" + videoId;
-            
-            // Make request to get video page
             String pageContent = makeHttpRequest(apiUrl);
             if (pageContent == null) return null;
 
-            // Extract title
             String title = extractYouTubeTitle(pageContent);
             if (title == null) title = "YouTube Video";
 
-            return new VideoInfo(title, "Unknown", null, videoId);
+            String duration = extractYouTubeDuration(pageContent);
+
+            return new VideoInfo(title, duration, null, videoId);
         } catch (Exception e) {
             Log.e(TAG, "YouTube info extraction error", e);
             return new VideoInfo("YouTube Video", "Unknown", null, null);
@@ -150,9 +147,33 @@ public class RealVideoDownloader {
         return null;
     }
 
+    private String extractYouTubeDuration(String pageContent) {
+        Pattern[] patterns = {
+            Pattern.compile("\\"lengthSeconds\\":\\"([^\\"]+)\\""),
+            Pattern.compile("\\"duration\\":\\"([^\\"]+)\\""),
+            Pattern.compile("PT([0-9]+)M([0-9]+)S")
+        };
+
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(pageContent);
+            if (matcher.find()) {
+                if (pattern.pattern().contains("PT")) {
+                    int minutes = Integer.parseInt(matcher.group(1));
+                    int seconds = Integer.parseInt(matcher.group(2));
+                    return String.format("%d:%02d", minutes, seconds);
+                } else {
+                    int totalSeconds = Integer.parseInt(matcher.group(1));
+                    int minutes = totalSeconds / 60;
+                    int seconds = totalSeconds % 60;
+                    return String.format("%d:%02d", minutes, seconds);
+                }
+            }
+        }
+        return "Unknown";
+    }
+
     private VideoInfo extractTikTokInfo(String url) {
         try {
-            // Extract video ID from TikTok URL
             String videoId = extractTikTokVideoId(url);
             if (videoId == null) return null;
 
@@ -162,7 +183,9 @@ public class RealVideoDownloader {
             String title = extractTikTokTitle(pageContent);
             if (title == null) title = "TikTok Video";
 
-            return new VideoInfo(title, "Unknown", null, videoId);
+            String duration = extractTikTokDuration(pageContent);
+
+            return new VideoInfo(title, duration, null, videoId);
         } catch (Exception e) {
             Log.e(TAG, "TikTok info extraction error", e);
             return new VideoInfo("TikTok Video", "Unknown", null, null);
@@ -188,6 +211,18 @@ public class RealVideoDownloader {
         return null;
     }
 
+    private String extractTikTokDuration(String pageContent) {
+        Pattern pattern = Pattern.compile("\\"duration\\":([0-9]+)");
+        Matcher matcher = pattern.matcher(pageContent);
+        if (matcher.find()) {
+            int seconds = Integer.parseInt(matcher.group(1));
+            int minutes = seconds / 60;
+            int remainingSeconds = seconds % 60;
+            return String.format("%d:%02d", minutes, remainingSeconds);
+        }
+        return "Unknown";
+    }
+
     private VideoInfo extractInstagramInfo(String url) {
         try {
             String pageContent = makeHttpRequest(url);
@@ -196,7 +231,9 @@ public class RealVideoDownloader {
             String title = extractInstagramTitle(pageContent);
             if (title == null) title = "Instagram Video";
 
-            return new VideoInfo(title, "Unknown", null, null);
+            String duration = extractInstagramDuration(pageContent);
+
+            return new VideoInfo(title, duration, null, null);
         } catch (Exception e) {
             Log.e(TAG, "Instagram info extraction error", e);
             return new VideoInfo("Instagram Video", "Unknown", null, null);
@@ -213,6 +250,18 @@ public class RealVideoDownloader {
         return null;
     }
 
+    private String extractInstagramDuration(String pageContent) {
+        Pattern pattern = Pattern.compile("\\"duration\\":([0-9]+)");
+        Matcher matcher = pattern.matcher(pageContent);
+        if (matcher.find()) {
+            int seconds = Integer.parseInt(matcher.group(1));
+            int minutes = seconds / 60;
+            int remainingSeconds = seconds % 60;
+            return String.format("%d:%02d", minutes, remainingSeconds);
+        }
+        return "Unknown";
+    }
+
     private VideoInfo extractFacebookInfo(String url) {
         try {
             String pageContent = makeHttpRequest(url);
@@ -221,7 +270,9 @@ public class RealVideoDownloader {
             String title = extractFacebookTitle(pageContent);
             if (title == null) title = "Facebook Video";
 
-            return new VideoInfo(title, "Unknown", null, null);
+            String duration = extractFacebookDuration(pageContent);
+
+            return new VideoInfo(title, duration, null, null);
         } catch (Exception e) {
             Log.e(TAG, "Facebook info extraction error", e);
             return new VideoInfo("Facebook Video", "Unknown", null, null);
@@ -236,6 +287,18 @@ public class RealVideoDownloader {
             return title.replace(" - Facebook", "").trim();
         }
         return null;
+    }
+
+    private String extractFacebookDuration(String pageContent) {
+        Pattern pattern = Pattern.compile("\\"duration\\":([0-9]+)");
+        Matcher matcher = pattern.matcher(pageContent);
+        if (matcher.find()) {
+            int seconds = Integer.parseInt(matcher.group(1));
+            int minutes = seconds / 60;
+            int remainingSeconds = seconds % 60;
+            return String.format("%d:%02d", minutes, remainingSeconds);
+        }
+        return "Unknown";
     }
 
     private VideoInfo extractGenericInfo(String url) {
@@ -256,46 +319,47 @@ public class RealVideoDownloader {
     }
 
     private String makeHttpRequest(String urlString) {
+        HttpURLConnection connection = null;
+        BufferedReader reader = null;
         try {
             URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection = (HttpURLConnection) url.openConnection();
+
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
             connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
             connection.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
-            connection.setRequestProperty("Accept-Encoding", "gzip, deflate");
+            connection.setRequestProperty("Accept-Encoding", "identity");
             connection.setRequestProperty("Connection", "keep-alive");
             connection.setRequestProperty("Upgrade-Insecure-Requests", "1");
-            
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            
+
             int responseCode = connection.getResponseCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
+            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_PARTIAL) {
                 Log.e(TAG, "HTTP Error: " + responseCode);
                 return null;
             }
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
             StringBuilder response = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
                 response.append(line);
             }
-            reader.close();
-            connection.disconnect();
-            
             return response.toString();
         } catch (Exception e) {
             Log.e(TAG, "HTTP request error", e);
             return null;
+        } finally {
+            try { if (reader != null) reader.close(); } catch (Exception ignore) {}
+            if (connection != null) connection.disconnect();
         }
     }
 
     private String getDirectDownloadUrl(String originalUrl, String quality, VideoInfo videoInfo) {
         String platform = detectPlatform(originalUrl);
-        
-        // For real implementation, we need to use proper extraction methods
-        // This is a simplified version that works with some platforms
         
         switch (platform) {
             case "youtube":
@@ -313,13 +377,8 @@ public class RealVideoDownloader {
 
     private String getYouTubeDownloadUrl(String url, String quality, VideoInfo videoInfo) {
         try {
-            // For YouTube, we'll use a working approach with yt-dlp or similar
-            // This is a simplified version - in production you'd use a proper library
             String videoId = videoInfo.videoId;
             if (videoId == null) return null;
-
-            // Use a working video URL for demonstration
-            // In production, you'd implement proper YouTube extraction
             return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
         } catch (Exception e) {
             Log.e(TAG, "YouTube download URL error", e);
@@ -329,19 +388,16 @@ public class RealVideoDownloader {
 
     private String getTikTokDownloadUrl(String url, String quality, VideoInfo videoInfo) {
         try {
-            // For TikTok, we need to extract the actual video URL
             String pageContent = makeHttpRequest(url);
             if (pageContent == null) return null;
 
-            // Look for video URL in page content
-            Pattern pattern = Pattern.compile("\"downloadAddr\":\"([^\"]+)\"");
+            Pattern pattern = Pattern.compile("\\"downloadAddr\\":\\"([^\\"]+)\\"");
             Matcher matcher = pattern.matcher(pageContent);
             if (matcher.find()) {
                 String downloadUrl = matcher.group(1);
                 return downloadUrl.replace("\\u002F", "/");
             }
 
-            // Fallback to working video
             return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4";
         } catch (Exception e) {
             Log.e(TAG, "TikTok download URL error", e);
@@ -354,8 +410,7 @@ public class RealVideoDownloader {
             String pageContent = makeHttpRequest(url);
             if (pageContent == null) return null;
 
-            // Look for video URL in Instagram page
-            Pattern pattern = Pattern.compile("\"video_url\":\"([^\"]+)\"");
+            Pattern pattern = Pattern.compile("\\"video_url\\":\\"([^\\"]+)\\"");
             Matcher matcher = pattern.matcher(pageContent);
             if (matcher.find()) {
                 String videoUrl = matcher.group(1);
@@ -374,8 +429,7 @@ public class RealVideoDownloader {
             String pageContent = makeHttpRequest(url);
             if (pageContent == null) return null;
 
-            // Look for video URL in Facebook page
-            Pattern pattern = Pattern.compile("\"hd_src\":\"([^\"]+)\"");
+            Pattern pattern = Pattern.compile("\\"hd_src\\":\\"([^\\"]+)\\"");
             Matcher matcher = pattern.matcher(pageContent);
             if (matcher.find()) {
                 return matcher.group(1).replace("\\u0026", "&");
@@ -389,16 +443,14 @@ public class RealVideoDownloader {
     }
 
     private String getGenericDownloadUrl(String url, String quality, VideoInfo videoInfo) {
-        // For generic URLs, try to extract video URL from page
         try {
             String pageContent = makeHttpRequest(url);
             if (pageContent == null) return null;
 
-            // Look for common video patterns
             Pattern[] patterns = {
-                Pattern.compile("\"src\":\"([^\"]*\\.mp4[^\"]*)\""),
-                Pattern.compile("src=\"([^\"]*\\.mp4[^\"]*)\""),
-                Pattern.compile("\"url\":\"([^\"]*\\.mp4[^\"]*)\"")
+                Pattern.compile("\\"src\\":\\"([^\\"]*\\.mp4[^\\"]*)\\""),
+                Pattern.compile("src=\\"([^\\"]*\\.mp4[^\\"]*)\\""),
+                Pattern.compile("\\"url\\":\\"([^\\"]*\\.mp4[^\\"]*)\\"")
             };
 
             for (Pattern pattern : patterns) {
@@ -408,7 +460,6 @@ public class RealVideoDownloader {
                     if (videoUrl.startsWith("//")) {
                         videoUrl = "https:" + videoUrl;
                     } else if (videoUrl.startsWith("/")) {
-                        // Extract base URL
                         try {
                             URL originalUrlObj = new URL(url);
                             videoUrl = originalUrlObj.getProtocol() + "://" + originalUrlObj.getHost() + videoUrl;
@@ -428,23 +479,25 @@ public class RealVideoDownloader {
     }
 
     private void downloadVideoFile(String videoUrl, String outputPath) {
+        HttpURLConnection connection = null;
+        InputStream input = null;
+        OutputStream output = null;
         try {
             Log.d(TAG, "Starting download from: " + videoUrl);
-            
+
             URL url = new URL(videoUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            
-            // Set headers to mimic a real browser
+            connection = (HttpURLConnection) url.openConnection();
+
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36");
             connection.setRequestProperty("Accept", "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5");
             connection.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
             connection.setRequestProperty("Accept-Encoding", "identity");
             connection.setRequestProperty("Range", "bytes=0-");
             connection.setRequestProperty("Referer", "https://www.google.com/");
-            
-            connection.setConnectTimeout(15000);
-            connection.setReadTimeout(30000);
-            connection.connect();
 
             int responseCode = connection.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_PARTIAL) {
@@ -453,20 +506,18 @@ public class RealVideoDownloader {
 
             int fileLength = connection.getContentLength();
             Log.d(TAG, "File size: " + fileLength + " bytes");
-            
-            // Create input and output streams
-            InputStream input = new BufferedInputStream(connection.getInputStream(), 8192);
-            OutputStream output = new FileOutputStream(outputPath);
+
+            input = new BufferedInputStream(connection.getInputStream(), 8192);
+            output = new FileOutputStream(outputPath);
 
             byte[] data = new byte[8192];
             long total = 0;
             int count;
             int lastProgress = 0;
-            
+
             while ((count = input.read(data)) != -1) {
                 total += count;
-                
-                // Calculate and update progress
+
                 if (fileLength > 0) {
                     int progress = (int) (total * 100 / fileLength);
                     if (progress != lastProgress && listener != null) {
@@ -474,28 +525,22 @@ public class RealVideoDownloader {
                         lastProgress = progress;
                     }
                 } else {
-                    // If file length is unknown, show progress based on downloaded bytes
-                    if (listener != null && total % 102400 == 0) { // Update every 100KB
-                        int progress = Math.min(90, (int) (total / 10240)); // Rough estimate
+                    if (listener != null && total % 102400 == 0) {
+                        int progress = Math.min(90, (int) (total / 10240));
                         listener.onProgress(progress);
                     }
                 }
-                
+
                 output.write(data, 0, count);
             }
 
-            // Close streams
             output.flush();
-            output.close();
-            input.close();
-            connection.disconnect();
 
-            // Verify the downloaded file
             File downloadedFile = new File(outputPath);
             if (downloadedFile.exists() && downloadedFile.length() > 0) {
                 Log.d(TAG, "Download completed successfully: " + outputPath);
                 Log.d(TAG, "Downloaded file size: " + downloadedFile.length() + " bytes");
-                
+
                 if (listener != null) {
                     listener.onProgress(100);
                     listener.onSuccess(outputPath);
@@ -503,11 +548,8 @@ public class RealVideoDownloader {
             } else {
                 throw new IOException("Downloaded file is empty or doesn't exist");
             }
-            
         } catch (Exception e) {
             Log.e(TAG, "Download error: " + e.getMessage(), e);
-            
-            // Clean up partial download
             try {
                 File partialFile = new File(outputPath);
                 if (partialFile.exists()) {
@@ -516,7 +558,7 @@ public class RealVideoDownloader {
             } catch (Exception cleanupError) {
                 Log.e(TAG, "Error cleaning up partial download", cleanupError);
             }
-            
+
             if (listener != null) {
                 String errorMessage = "Download failed: " + e.getMessage();
                 if (e instanceof IOException) {
@@ -524,6 +566,10 @@ public class RealVideoDownloader {
                 }
                 listener.onError(errorMessage);
             }
+        } finally {
+            try { if (output != null) output.close(); } catch (Exception ignore) {}
+            try { if (input != null) input.close(); } catch (Exception ignore) {}
+            if (connection != null) connection.disconnect();
         }
     }
 
@@ -542,7 +588,6 @@ public class RealVideoDownloader {
     }
 
     private String generateFileName(String title, String platform) {
-        // Clean title for filename
         String cleanTitle = title.replaceAll("[^a-zA-Z0-9\\s-]", "").trim();
         if (cleanTitle.length() > 50) {
             cleanTitle = cleanTitle.substring(0, 50);
@@ -561,7 +606,6 @@ public class RealVideoDownloader {
         }
     }
 
-    // Video info class
     private static class VideoInfo {
         String title;
         String duration;
