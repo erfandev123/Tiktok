@@ -8,17 +8,14 @@ import android.view.View;
 import android.widget.*;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.cardview.widget.CardView;
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
 
 public class MainActivity extends Activity {
     private static final int STORAGE_PERMISSION_CODE = 1001;
     
-    private TextInputEditText etVideoUrl;
+    private EditText etVideoUrl;
     private Spinner spinnerQuality;
-    private MaterialButton btnDownload;
-    private CardView progressCard;
+    private Button btnDownload;
+    private LinearLayout progressCard;
     private TextView tvDownloadStatus;
     private ProgressBar progressBar;
     private TextView tvProgressPercent;
