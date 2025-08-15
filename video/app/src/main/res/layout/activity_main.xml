@@ -255,7 +255,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="1. Copy the video URL from your favorite platform\n2. Paste it in the URL field above\n3. Select your preferred quality\n4. Tap Download Video\n5. Videos will be saved to Downloads folder"
+                android:text="1. Copy the video URL from your favorite platform\n2. Paste it in the URL field above\n3. Select your preferred quality\n4. Tap Download Video\n5. Videos will be saved to Downloads folder\n\n📹 Demo Note: This version downloads sample videos to demonstrate functionality. Real video extraction requires API integration."
                 android:textSize="12sp"
                 android:textColor="#856404"
                 android:lineSpacingExtra="2dp" />

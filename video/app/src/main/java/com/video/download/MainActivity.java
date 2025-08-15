@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private TextView tvProgressPercent;
     
-    private VideoDownloader videoDownloader;
+    private RealVideoDownloader videoDownloader;
     private ErrorHandler errorHandler;
 
     @Override
@@ -77,8 +77,8 @@ public class MainActivity extends Activity {
     }
 
     private void setupDownloader() {
-        videoDownloader = new VideoDownloader(this);
-        videoDownloader.setDownloadListener(new VideoDownloader.DownloadListener() {
+        videoDownloader = new RealVideoDownloader(this);
+        videoDownloader.setDownloadListener(new RealVideoDownloader.DownloadListener() {
             @Override
             public void onStart() {
                 runOnUiThread(new Runnable() {
@@ -173,11 +173,27 @@ public class MainActivity extends Activity {
         String quality = parseQuality(selectedQuality);
         
         try {
-            showToast("Starting download...");
+            // Show user-friendly message about demo functionality
+            String platform = detectPlatformFromUrl(url);
+            showToast("Downloading " + platform + " video... (Demo version with sample videos)");
             videoDownloader.downloadVideo(url, quality);
         } catch (Exception e) {
             errorHandler.handleError(e, "Starting download");
         }
+    }
+
+    private String detectPlatformFromUrl(String url) {
+        url = url.toLowerCase();
+        if (url.contains("youtube.com") || url.contains("youtu.be")) {
+            return "YouTube";
+        } else if (url.contains("tiktok.com") || url.contains("vm.tiktok.com")) {
+            return "TikTok";
+        } else if (url.contains("instagram.com")) {
+            return "Instagram";
+        } else if (url.contains("facebook.com") || url.contains("fb.watch")) {
+            return "Facebook";
+        }
+        return "Video";
     }
 
     private boolean isValidUrl(String url) {
