@@ -7,6 +7,10 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import android.os.Build;
+import android.graphics.Color;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.text.TextUtils;
 
 public class MainActivity extends Activity {
     private static final int STORAGE_PERMISSION_CODE = 1001;
@@ -18,8 +22,12 @@ public class MainActivity extends Activity {
     private TextView tvDownloadStatus;
     private ProgressBar progressBar;
     private TextView tvProgressPercent;
+    private LinearLayout videoInfoCard;
+    private TextView tvVideoTitle;
+    private TextView tvVideoDuration;
+    private ImageView ivVideoThumbnail;
     
-    private RealVideoDownloader videoDownloader;
+    private EnhancedVideoDownloader videoDownloader;
     private ErrorHandler errorHandler;
 
     @Override
@@ -45,6 +53,10 @@ public class MainActivity extends Activity {
         tvDownloadStatus = findViewById(R.id.tvDownloadStatus);
         progressBar = findViewById(R.id.progressBar);
         tvProgressPercent = findViewById(R.id.tvProgressPercent);
+        videoInfoCard = findViewById(R.id.videoInfoCard);
+        tvVideoTitle = findViewById(R.id.tvVideoTitle);
+        tvVideoDuration = findViewById(R.id.tvVideoDuration);
+        ivVideoThumbnail = findViewById(R.id.ivVideoThumbnail);
 
         btnDownload.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -52,6 +64,51 @@ public class MainActivity extends Activity {
                 startDownload();
             }
         });
+
+        // Add URL change listener for real-time validation
+        etVideoUrl.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                validateUrlInRealTime(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+
+    private void validateUrlInRealTime(String url) {
+        if (TextUtils.isEmpty(url.trim())) {
+            btnDownload.setEnabled(false);
+            btnDownload.setBackgroundColor(Color.parseColor("#cccccc"));
+            return;
+        }
+
+        ErrorHandler.ValidationResult validation = ErrorHandler.validateUrl(url);
+        if (validation.isValid()) {
+            btnDownload.setEnabled(true);
+            btnDownload.setBackgroundColor(Color.parseColor("#27ae60"));
+            
+            // Show platform indicator
+            String platform = detectPlatformFromUrl(url);
+            showPlatformIndicator(platform);
+        } else {
+            btnDownload.setEnabled(false);
+            btnDownload.setBackgroundColor(Color.parseColor("#cccccc"));
+        }
+    }
+
+    private void showPlatformIndicator(String platform) {
+        // Update UI to show detected platform
+        TextView tvPlatform = findViewById(R.id.tvPlatform);
+        if (tvPlatform != null) {
+            String platformText = "📹 " + platform;
+            tvPlatform.setText(platformText);
+            tvPlatform.setVisibility(View.VISIBLE);
+        }
     }
 
     private void setupSpinner() {
@@ -77,19 +134,26 @@ public class MainActivity extends Activity {
     }
 
     private void setupDownloader() {
-        videoDownloader = new RealVideoDownloader(this);
-        videoDownloader.setDownloadListener(new RealVideoDownloader.DownloadListener() {
+        videoDownloader = new EnhancedVideoDownloader(this);
+        videoDownloader.setDownloadListener(new EnhancedVideoDownloader.DownloadListener() {
             @Override
             public void onStart() {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         btnDownload.setEnabled(false);
-                        btnDownload.setText("Downloading...");
+                        btnDownload.setText("Analyzing Video...");
                         progressCard.setVisibility(View.VISIBLE);
-                        tvDownloadStatus.setText("Preparing download...");
+                        tvDownloadStatus.setText("Extracting video information...");
                         progressBar.setProgress(0);
                         tvProgressPercent.setText("0%");
+                        
+                        // Hide video info card
+                        videoInfoCard.setVisibility(View.GONE);
+                        
+                        // Add animation
+                        Animation fadeIn = AnimationUtils.loadAnimation(MainActivity.this, android.R.anim.fade_in);
+                        progressCard.startAnimation(fadeIn);
                     }
                 });
             }
@@ -101,7 +165,16 @@ public class MainActivity extends Activity {
                     public void run() {
                         progressBar.setProgress(progress);
                         tvProgressPercent.setText(progress + "%");
-                        tvDownloadStatus.setText("Downloading... " + progress + "%");
+                        
+                        if (progress < 10) {
+                            tvDownloadStatus.setText("Preparing download...");
+                        } else if (progress < 50) {
+                            tvDownloadStatus.setText("Downloading video...");
+                        } else if (progress < 90) {
+                            tvDownloadStatus.setText("Almost done...");
+                        } else {
+                            tvDownloadStatus.setText("Finalizing...");
+                        }
                     }
                 });
             }
@@ -113,16 +186,18 @@ public class MainActivity extends Activity {
                     public void run() {
                         btnDownload.setEnabled(true);
                         btnDownload.setText("Download Video");
-                        tvDownloadStatus.setText("Download completed!");
+                        tvDownloadStatus.setText("✅ Download completed successfully!");
                         progressBar.setProgress(100);
                         tvProgressPercent.setText("100%");
                         
-                        showToast("Video downloaded successfully!\nSaved to: " + filePath);
+                        showSuccessToast("Video downloaded successfully!\nSaved to: " + filePath);
                         
                         // Hide progress card after 3 seconds
                         progressCard.postDelayed(new Runnable() {
                             @Override
                             public void run() {
+                                Animation fadeOut = AnimationUtils.loadAnimation(MainActivity.this, android.R.anim.fade_out);
+                                progressCard.startAnimation(fadeOut);
                                 progressCard.setVisibility(View.GONE);
                             }
                         }, 3000);
@@ -138,7 +213,28 @@ public class MainActivity extends Activity {
                         btnDownload.setEnabled(true);
                         btnDownload.setText("Download Video");
                         progressCard.setVisibility(View.GONE);
-                        showToast("Download failed: " + error);
+                        showErrorToast("Download failed: " + error);
+                    }
+                });
+            }
+
+            @Override
+            public void onVideoInfo(final String title, final String duration, final String thumbnail) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Show video info card
+                        tvVideoTitle.setText(title);
+                        tvVideoDuration.setText(duration);
+                        
+                        // Show video info with animation
+                        videoInfoCard.setVisibility(View.VISIBLE);
+                        Animation slideIn = AnimationUtils.loadAnimation(MainActivity.this, android.R.anim.slide_in_left);
+                        videoInfoCard.startAnimation(slideIn);
+                        
+                        // Update download button
+                        btnDownload.setText("Download Now");
+                        btnDownload.setBackgroundColor(Color.parseColor("#e74c3c"));
                     }
                 });
             }
@@ -151,7 +247,7 @@ public class MainActivity extends Activity {
         // Enhanced URL validation
         ErrorHandler.ValidationResult validation = ErrorHandler.validateUrl(url);
         if (!validation.isValid()) {
-            showToast(validation.getMessage());
+            showErrorToast(validation.getMessage());
             return;
         }
 
@@ -159,7 +255,7 @@ public class MainActivity extends Activity {
         ErrorHandler.SystemCheckResult systemCheck = ErrorHandler.checkSystemRequirements(this);
         if (systemCheck.hasErrors()) {
             for (String error : systemCheck.getErrors()) {
-                showToast("System Error: " + error);
+                showErrorToast("System Error: " + error);
             }
             return;
         }
@@ -173,9 +269,8 @@ public class MainActivity extends Activity {
         String quality = parseQuality(selectedQuality);
         
         try {
-            // Show user-friendly message about demo functionality
             String platform = detectPlatformFromUrl(url);
-            showToast("Downloading " + platform + " video... (Demo version with sample videos)");
+            showInfoToast("Starting download from " + platform + "...");
             videoDownloader.downloadVideo(url, quality);
         } catch (Exception e) {
             errorHandler.handleError(e, "Starting download");
@@ -226,7 +321,7 @@ public class MainActivity extends Activity {
     private void requestStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                showToast("Storage permission is required to save downloaded videos");
+                showInfoToast("Storage permission is required to save downloaded videos");
             }
             
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 
@@ -246,15 +341,33 @@ public class MainActivity extends Activity {
         
         if (requestCode == STORAGE_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                showToast("Storage permission granted. You can now download videos.");
+                showSuccessToast("Storage permission granted. You can now download videos.");
             } else {
-                showToast("Storage permission denied. Cannot download videos without permission.");
+                showErrorToast("Storage permission denied. Cannot download videos without permission.");
             }
         }
     }
 
     private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void showSuccessToast(String message) {
+        Toast toast = Toast.makeText(this, message, Toast.LENGTH_LONG);
+        toast.getView().setBackgroundColor(Color.parseColor("#27ae60"));
+        toast.show();
+    }
+
+    private void showErrorToast(String message) {
+        Toast toast = Toast.makeText(this, message, Toast.LENGTH_LONG);
+        toast.getView().setBackgroundColor(Color.parseColor("#e74c3c"));
+        toast.show();
+    }
+
+    private void showInfoToast(String message) {
+        Toast toast = Toast.makeText(this, message, Toast.LENGTH_SHORT);
+        toast.getView().setBackgroundColor(Color.parseColor("#3498db"));
+        toast.show();
     }
 
     // Handle paste from clipboard
@@ -278,7 +391,7 @@ public class MainActivity extends Activity {
                 
                 if (isValidUrl(clipText)) {
                     etVideoUrl.setText(clipText);
-                    showToast("URL pasted from clipboard");
+                    showInfoToast("URL pasted from clipboard");
                 }
             }
         } catch (Exception e) {
@@ -289,9 +402,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Clean up resources if needed
+        // Clean up resources
         if (videoDownloader != null) {
-            videoDownloader.setDownloadListener(null);
+            videoDownloader.shutdown();
         }
     }
 }
